@@ -1,12 +1,12 @@
-
 /* ==========================================================
    SAM Styles – script.js
-   Original features:
-   - 1000 styles from #styleData .tpl
-   - Search, categories, Show More, Copy + toast
-   - Favorites with localStorage
-   Added:
-   - Trending category with 10 Masterpiece styles
+   Works with the supplied index.html + style.css
+   - Reads the 10 style blocks (#styleData .tpl) -> 1000 styles
+   - Live name search box, category filter, "Show more", copy + toast
+   - Favorites (heart on every card, saved in localStorage,
+     "Favorites" tab in the category bar)
+   - NEW: 🔥 Trending category (10 styles, defined as a normal style block
+     in index.html and shown right after "Favorites")
    ========================================================== */
 (function () {
   "use strict";
@@ -32,33 +32,26 @@
   var yearEl = $("year");
 
   /* ==========================================================
-     1. FONT ENGINE
+     1. FONT ENGINE (Unicode letter styles)
      ========================================================== */
   function cp(n) { return String.fromCodePoint(n); }
 
+  // Build a function that maps A-Z, a-z (and optional digits) to another block.
   function makeMapper(opt) {
     var map = {};
     var i;
-
     for (i = 0; i < 26; i++) {
       var U = String.fromCharCode(65 + i);
       var L = String.fromCharCode(97 + i);
       if (opt.upper !== undefined) map[U] = cp(opt.upper + i);
       if (opt.lower !== undefined) map[L] = cp(opt.lower + i);
     }
-
     if (opt.digit !== undefined) {
       for (i = 0; i < 10; i++) map[String(i)] = cp(opt.digit + i);
     }
-
     if (opt.extra) {
-      for (var k in opt.extra) {
-        if (Object.prototype.hasOwnProperty.call(opt.extra, k)) {
-          map[k] = opt.extra[k];
-        }
-      }
+      for (var k in opt.extra) if (Object.prototype.hasOwnProperty.call(opt.extra, k)) map[k] = opt.extra[k];
     }
-
     return function (text) {
       var out = "";
       for (var ch of text) out += map[ch] !== undefined ? map[ch] : ch;
@@ -66,9 +59,9 @@
     };
   }
 
+  // Small caps: both cases map to small capital letters
   var SMALLCAPS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ";
   var smallcapsMap = {};
-
   (function () {
     var arr = Array.from(SMALLCAPS);
     for (var i = 0; i < 26; i++) {
@@ -80,70 +73,39 @@
   var FONTS = {
     plain: function (t) { return t; },
 
-    boldscript: makeMapper({
-      upper: 0x1D4D0, lower: 0x1D4EA, digit: 0x1D7CE
-    }),
-
-    serifbold: makeMapper({
-      upper: 0x1D400, lower: 0x1D41A, digit: 0x1D7CE
-    }),
-
+    boldscript: makeMapper({ upper: 0x1D4D0, lower: 0x1D4EA, digit: 0x1D7CE }),
+    serifbold: makeMapper({ upper: 0x1D400, lower: 0x1D41A, digit: 0x1D7CE }),
     fraktur: makeMapper({
-      upper: 0x1D504,
-      lower: 0x1D51E,
+      upper: 0x1D504, lower: 0x1D51E,
       extra: { C: "ℭ", H: "ℌ", I: "ℑ", R: "ℜ", Z: "ℨ" }
     }),
-
-    frakturbold: makeMapper({
-      upper: 0x1D56C, lower: 0x1D586, digit: 0x1D7CE
-    }),
-
+    frakturbold: makeMapper({ upper: 0x1D56C, lower: 0x1D586, digit: 0x1D7CE }),
     double: makeMapper({
-      upper: 0x1D538,
-      lower: 0x1D552,
-      digit: 0x1D7D8,
-      extra: {
-        C: "ℂ", H: "ℍ", N: "ℕ", P: "ℙ",
-        Q: "ℚ", R: "ℝ", Z: "ℤ"
-      }
+      upper: 0x1D538, lower: 0x1D552, digit: 0x1D7D8,
+      extra: { C: "ℂ", H: "ℍ", N: "ℕ", P: "ℙ", Q: "ℚ", R: "ℝ", Z: "ℤ" }
     }),
-
     script: makeMapper({
-      upper: 0x1D49C,
-      lower: 0x1D4B6,
+      upper: 0x1D49C, lower: 0x1D4B6,
       extra: {
-        B: "ℬ", E: "ℰ", F: "ℱ", H: "ℋ",
-        I: "ℐ", L: "ℒ", M: "ℳ", R: "ℛ",
+        B: "ℬ", E: "ℰ", F: "ℱ", H: "ℋ", I: "ℐ", L: "ℒ", M: "ℳ", R: "ℛ",
         e: "ℯ", g: "ℊ", o: "ℴ"
       }
     }),
-
     italicserif: makeMapper({
-      upper: 0x1D434,
-      lower: 0x1D44E,
-      digit: 0x1D7CE,
+      upper: 0x1D434, lower: 0x1D44E, digit: 0x1D7CE,
       extra: { h: "ℎ" }
     }),
-
-    mono: makeMapper({
-      upper: 0x1D670, lower: 0x1D68A, digit: 0x1D7F6
-    }),
-
+    mono: makeMapper({ upper: 0x1D670, lower: 0x1D68A, digit: 0x1D7F6 }),
     bubble: makeMapper({
-      upper: 0x24B6,
-      lower: 0x24D0,
+      upper: 0x24B6, lower: 0x24D0,
       extra: {
-        "0": "⓪", "1": "①", "2": "②", "3": "③",
-        "4": "④", "5": "⑤", "6": "⑥", "7": "⑦",
-        "8": "⑧", "9": "⑨"
+        "0": "⓪", "1": "①", "2": "②", "3": "③", "4": "④",
+        "5": "⑤", "6": "⑥", "7": "⑦", "8": "⑧", "9": "⑨"
       }
     }),
-
     smallcaps: function (text) {
       var out = "";
-      for (var ch of text) {
-        out += smallcapsMap[ch] !== undefined ? smallcapsMap[ch] : ch;
-      }
+      for (var ch of text) out += smallcapsMap[ch] !== undefined ? smallcapsMap[ch] : ch;
       return out;
     }
   };
@@ -154,39 +116,13 @@
   }
 
   /* ==========================================================
-     2. TRENDING STYLES — 10 MASTERPIECE DESIGNS
+     2. LOAD STYLE DATA FROM THE HTML
      ========================================================== */
-  var TRENDING_STYLES = [
-    { tpl: "꧁༒☬ {n} ☬༒꧂", font: "plain" },
-    { tpl: "亗  {n}  亗", font: "serifbold" },
-    { tpl: "『⚡』{n}『⚡』", font: "plain" },
-    { tpl: "♛  {n}  ♛", font: "boldscript" },
-    { tpl: "乂❤ {n} ❤乂", font: "plain" },
-    { tpl: "么  {n}  么", font: "italicserif" },
-    { tpl: "𓆩♡𓆪 {n} 𓆩♡𓆪", font: "plain" },
-    { tpl: "★彡 {n} 彡★", font: "plain" },
-    { tpl: "◥꧁ {n} ꧂◤", font: "serifbold" },
-    { tpl: "༺𓆩 {n} 𓆪༻", font: "boldscript" }
-  ];
-
-  var trendingStyles = TRENDING_STYLES.map(function (style, index) {
-    return {
-      tpl: style.tpl,
-      font: style.font,
-      cat: "trending",
-      id: "trending|" + index + "|" + style.tpl
-    };
-  });
-
-  /* ==========================================================
-     3. LOAD STYLE DATA FROM HTML
-     ========================================================== */
-  var categories = [];
-  var allStyles = [];
+  var categories = [];   // { key, title, font, items: [ {tpl, catKey} ] }
+  var allStyles = [];    // all styles, round-robin ordered across categories
 
   function loadData() {
     var blocks = document.querySelectorAll("#styleData script.tpl");
-
     blocks.forEach(function (block) {
       var lines = block.textContent
         .split(/\r?\n/)
@@ -199,32 +135,30 @@
         font: block.getAttribute("data-font") || "plain",
         items: []
       };
-
       cat.items = lines.map(function (tpl) {
-        return {
-          tpl: tpl,
-          font: cat.font,
-          cat: cat.key,
-          id: cat.key + "|" + tpl
-        };
+        // id = stable key for favorites (does not depend on the typed name)
+        return { tpl: tpl, font: cat.font, cat: cat.key, id: cat.key + "|" + tpl };
       });
-
       categories.push(cat);
     });
 
-    var max = categories.reduce(function (m, c) {
-      return Math.max(m, c.items.length);
-    }, 0);
-
+    // Round-robin mix so "All" shows variety on the first page
+    // (Trending is kept out of the mix so the original order stays unchanged)
+    var core = categories.filter(function (c) { return c.key !== "trending"; });
+    var max = core.reduce(function (m, c) { return Math.max(m, c.items.length); }, 0);
     for (var i = 0; i < max; i++) {
-      categories.forEach(function (c) {
+      core.forEach(function (c) {
         if (c.items[i]) allStyles.push(c.items[i]);
       });
     }
+    // ...and the Trending styles are listed at the end of "All"
+    categories.forEach(function (c) {
+      if (c.key === "trending") c.items.forEach(function (it) { allStyles.push(it); });
+    });
   }
 
   /* ==========================================================
-     4. STATE + FAVORITES
+     3. STATE
      ========================================================== */
   var state = {
     name: "",
@@ -233,29 +167,22 @@
     list: []
   };
 
-  var favs = {};
+  /* ---------- Favorites storage ---------- */
+  var favs = {};   // { id: true }
 
   function loadFavs() {
     try {
       var raw = localStorage.getItem(FAV_KEY);
       var arr = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(arr)) {
-        arr.forEach(function (id) { favs[id] = true; });
-      }
-    } catch (e) {
-      favs = {};
-    }
+      if (Array.isArray(arr)) arr.forEach(function (id) { favs[id] = true; });
+    } catch (e) { favs = {}; }
   }
 
   function saveFavs() {
-    try {
-      localStorage.setItem(FAV_KEY, JSON.stringify(Object.keys(favs)));
-    } catch (e) {}
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(Object.keys(favs))); } catch (e) {}
   }
 
-  function favCount() {
-    return Object.keys(favs).length;
-  }
+  function favCount() { return Object.keys(favs).length; }
 
   function currentName() {
     var n = (state.name || "").trim();
@@ -268,11 +195,9 @@
   }
 
   /* ==========================================================
-     5. CATEGORY BAR
+     4. CATEGORY BAR
      ========================================================== */
-  function favLabel() {
-    return "♥ Favorites (" + favCount() + ")";
-  }
+  function favLabel() { return "♥ Favorites (" + favCount() + ")"; }
 
   function buildCategoryBar() {
     var frag = document.createDocumentFragment();
@@ -280,10 +205,9 @@
     function addBtn(key, label, count) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "cat-btn" +
-        (key === "favs" ? " cat-fav" : "") +
-        (key === state.cat ? " active" : "");
+      b.className = "cat-btn" + (key === "favs" ? " cat-fav" : "") + (key === "trending" ? " cat-trend" : "") + (key === state.cat ? " active" : "");
       b.setAttribute("data-cat", key);
+      b.setAttribute("aria-pressed", key === state.cat ? "true" : "false");
       b.textContent = label;
       b.title = count + " styles";
       frag.appendChild(b);
@@ -291,13 +215,7 @@
 
     addBtn("all", "All", allStyles.length);
     addBtn("favs", favLabel(), favCount());
-
-    /* NEW: Trending button */
-    addBtn("trending", "🔥 Trending", trendingStyles.length);
-
-    categories.forEach(function (c) {
-      addBtn(c.key, c.title, c.items.length);
-    });
+    categories.forEach(function (c) { addBtn(c.key, c.title, c.items.length); });
 
     catBar.innerHTML = "";
     catBar.appendChild(frag);
@@ -313,42 +231,23 @@
 
   function setActiveCategory(key) {
     state.cat = key;
-
     catBar.querySelectorAll(".cat-btn").forEach(function (b) {
       var on = b.getAttribute("data-cat") === key;
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
-
       if (on && b.scrollIntoView) {
-        try {
-          b.scrollIntoView({
-            block: "nearest",
-            inline: "center",
-            behavior: "smooth"
-          });
-        } catch (e) {}
+        try { b.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" }); } catch (e) {}
       }
     });
   }
 
   /* ==========================================================
-     6. GET LIST + RENDER CARDS
+     5. RENDER CARDS
      ========================================================== */
   function getList() {
     if (state.cat === "all") return allStyles;
-
-    if (state.cat === "favs") {
-      return allStyles.concat(trendingStyles).filter(function (s) {
-        return !!favs[s.id];
-      });
-    }
-
-    if (state.cat === "trending") return trendingStyles;
-
-    var c = categories.filter(function (x) {
-      return x.key === state.cat;
-    })[0];
-
+    if (state.cat === "favs") return allStyles.filter(function (s) { return favs[s.id]; });
+    var c = categories.filter(function (x) { return x.key === state.cat; })[0];
     return c ? c.items : [];
   }
 
@@ -360,10 +259,7 @@
   function paintFav(btn, on) {
     btn.classList.toggle("is-fav", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.setAttribute(
-      "aria-label",
-      on ? "Remove from favorites" : "Add to favorites"
-    );
+    btn.setAttribute("aria-label", on ? "Remove from favorites" : "Add to favorites");
   }
 
   function createCard(item, index) {
@@ -397,9 +293,9 @@
 
     foot.appendChild(fav);
     foot.appendChild(btn);
+
     card.appendChild(span);
     card.appendChild(foot);
-
     return card;
   }
 
@@ -407,11 +303,9 @@
     var start = state.shown;
     var end = Math.min(start + PAGE_SIZE, state.list.length);
     var frag = document.createDocumentFragment();
-
     for (var i = start; i < end; i++) {
       frag.appendChild(createCard(state.list[i], i - start));
     }
-
     cardGrid.appendChild(frag);
     state.shown = end;
     updateMeta();
@@ -422,19 +316,10 @@
     state.shown = 0;
     cardGrid.innerHTML = "";
 
-    var active = categories.filter(function (c) {
-      return c.key === state.cat;
-    })[0];
-
-    if (state.cat === "all") {
-      cardsTitle.textContent = "All Styles";
-    } else if (state.cat === "favs") {
-      cardsTitle.textContent = "Your Favorites";
-    } else if (state.cat === "trending") {
-      cardsTitle.textContent = "🔥 Trending Masterpiece Styles";
-    } else {
-      cardsTitle.textContent = active ? active.title + " Styles" : "Styles";
-    }
+    var active = categories.filter(function (c) { return c.key === state.cat; })[0];
+    if (state.cat === "all") cardsTitle.textContent = "All Styles";
+    else if (state.cat === "favs") cardsTitle.textContent = "Your Favorites";
+    else cardsTitle.textContent = active ? active.title + " Styles" : "Styles";
 
     updateEmpty();
     appendNextPage();
@@ -442,52 +327,41 @@
 
   function updateEmpty() {
     emptyState.hidden = state.list.length > 0;
-
     emptyState.textContent = state.cat === "favs"
       ? "No favorites yet. Tap the heart on any card to save it here."
-      : state.cat === "trending"
-        ? "Trending styles are not available."
-        : "No styles found in this category.";
+      : "No styles found in this category.";
   }
 
   function updateMeta() {
     var total = state.list.length;
-    cardsMeta.textContent = total
-      ? "Showing " + state.shown + " of " + total
-      : "";
-
+    cardsMeta.textContent = total ? "Showing " + state.shown + " of " + total : "";
     loadMoreBtn.hidden = state.shown >= total;
-
     if (!loadMoreBtn.hidden) {
       var left = total - state.shown;
       loadMoreBtn.textContent = "Show more styles (" + left + " left)";
     }
   }
 
+  // Update text of already-rendered cards when the name changes (no re-animation)
   function refreshTexts() {
     cardGrid.querySelectorAll(".card").forEach(function (card) {
       var text = buildText(card.__item);
       card.__text = text;
       card.setAttribute("aria-label", "Copy style: " + text);
-
       var span = card.querySelector(".card-text");
       if (span) span.textContent = text;
     });
   }
 
   /* ==========================================================
-     7. COPY + TOAST
+     6. COPY + TOAST
      ========================================================== */
   var toastTimer = null;
-
   function showToast(msg) {
     toast.textContent = msg || "Copied!";
     toast.classList.add("show");
     clearTimeout(toastTimer);
-
-    toastTimer = setTimeout(function () {
-      toast.classList.remove("show");
-    }, 1600);
+    toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 1600);
   }
 
   function fallbackCopy(text) {
@@ -500,39 +374,29 @@
     document.body.appendChild(ta);
     ta.select();
     ta.setSelectionRange(0, text.length);
-
     var ok = false;
-    try {
-      ok = document.execCommand("copy");
-    } catch (e) {
-      ok = false;
-    }
-
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
     document.body.removeChild(ta);
     return ok;
   }
 
   function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text).then(
-        function () { return true; },
-        function () { return fallbackCopy(text); }
-      );
+      return navigator.clipboard.writeText(text).then(function () { return true; }, function () {
+        return fallbackCopy(text);
+      });
     }
-
     return Promise.resolve(fallbackCopy(text));
   }
 
   function copyCard(card) {
     if (!card || !card.__text) return;
-
     copyText(card.__text).then(function (ok) {
       if (ok) {
         card.classList.add("copied");
         var label = card.querySelector(".card-copy");
         if (label) label.textContent = "Copied ✓";
         showToast("Copied!");
-
         setTimeout(function () {
           card.classList.remove("copied");
           if (label) label.textContent = "Copy";
@@ -544,7 +408,7 @@
   }
 
   /* ==========================================================
-     8. FAVORITES TOGGLE
+     6b. FAVORITES TOGGLE
      ========================================================== */
   function toggleFav(card, favBtn) {
     var item = card.__item;
@@ -552,13 +416,13 @@
 
     if (on) favs[item.id] = true;
     else delete favs[item.id];
-
     saveFavs();
+
     paintFav(favBtn, on);
     updateFavButton();
-
     showToast(on ? "Added to favorites ♥" : "Removed from favorites");
 
+    // Inside the Favorites tab, an un-favorited card leaves the list
     if (state.cat === "favs" && !on) {
       card.remove();
       state.list = getList();
@@ -569,12 +433,10 @@
   }
 
   /* ==========================================================
-     9. EVENTS
+     7. EVENTS
      ========================================================== */
   function saveName() {
-    try {
-      localStorage.setItem(STORAGE_KEY, state.name);
-    } catch (e) {}
+    try { localStorage.setItem(STORAGE_KEY, state.name); } catch (e) {}
   }
 
   function onNameChange() {
@@ -602,10 +464,8 @@
   catBar.addEventListener("click", function (e) {
     var btn = e.target.closest(".cat-btn");
     if (!btn) return;
-
     var key = btn.getAttribute("data-cat");
     if (key === state.cat) return;
-
     setActiveCategory(key);
     renderAll();
   });
@@ -615,62 +475,51 @@
   cardGrid.addEventListener("click", function (e) {
     var card = e.target.closest(".card");
     if (!card) return;
-
     var favBtn = e.target.closest(".fav-btn");
-
-    if (favBtn) {
+    if (favBtn) {               // heart click: favorite only, do not copy
       e.stopPropagation();
       toggleFav(card, favBtn);
       return;
     }
-
     copyCard(card);
   });
 
   cardGrid.addEventListener("keydown", function (e) {
     if (e.key !== "Enter" && e.key !== " ") return;
-    if (e.target.closest(".fav-btn")) return;
-
+    if (e.target.closest(".fav-btn")) return;   // let the heart button handle its own keys
     var card = e.target.closest(".card");
     if (!card) return;
-
     e.preventDefault();
     copyCard(card);
   });
 
+  // Press "/" anywhere to jump to the search box
   document.addEventListener("keydown", function (e) {
-    if (
-      e.key === "/" &&
-      document.activeElement !== nameInput &&
-      !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)
-    ) {
+    if (e.key === "/" && document.activeElement !== nameInput &&
+        !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
       e.preventDefault();
       nameInput.focus();
     }
   });
 
   /* ==========================================================
-     10. INIT
+     8. INIT
      ========================================================== */
   function init() {
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
     loadData();
     loadFavs();
-
     totalCount.textContent = allStyles.length;
 
+    // restore saved name
     try {
       var saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        nameInput.value = saved.slice(
-          0,
-          nameInput.maxLength > 0 ? nameInput.maxLength : 24
-        );
+        nameInput.value = saved.slice(0, nameInput.maxLength > 0 ? nameInput.maxLength : 24);
         state.name = nameInput.value;
       }
     } catch (e) {}
-
     clearBtn.hidden = !nameInput.value.length;
 
     buildCategoryBar();
