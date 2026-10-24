@@ -397,3 +397,14 @@ main, .site-header, .site-footer { position: relative; z-index: 1; }
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 @media (max-width: 380px) { .logo { font-size: 1.35rem; } }
+
+
+/* ==========================================================
+   TRENDING (added) – "🔥 Trending" tab, same look as the other tabs
+   ========================================================== */
+.cat-btn.cat-trend { color: var(--gold-soft); }
+.cat-btn.cat-trend:hover { color: var(--gold-soft); }
+.cat-btn.cat-trend.active { color: #16130c; }
+/* long generated names never push the card wider than the grid */
+.card { min-width: 0; }
+.cat-btn { flex: none; }
