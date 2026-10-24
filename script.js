@@ -1,8 +1,10 @@
 /* ==========================================================
-   Naamora – script.js
+   SAM Styles – script.js
    Works with the supplied index.html + style.css
-   - Reads the 10 style blocks (#styleData .tpl) -> 500 styles
+   - Reads the 10 style blocks (#styleData .tpl) -> 1000 styles
    - Live name search box, category filter, "Show more", copy + toast
+   - NEW: Favorites (heart on every card, saved in localStorage,
+          "Favorites" tab in the category bar)
    ========================================================== */
 (function () {
   "use strict";
@@ -11,6 +13,7 @@
   var PAGE_SIZE = 24;
   var DEFAULT_NAME = "Your Name";
   var STORAGE_KEY = "naamora_name";
+  var FAV_KEY = "naamora_favorites";
 
   /* ---------- Elements ---------- */
   var $ = function (id) { return document.getElementById(id); };
@@ -131,7 +134,8 @@
         items: []
       };
       cat.items = lines.map(function (tpl) {
-        return { tpl: tpl, font: cat.font, cat: cat.key };
+        // id = stable key for favorites (does not depend on the typed name)
+        return { tpl: tpl, font: cat.font, cat: cat.key, id: cat.key + "|" + tpl };
       });
       categories.push(cat);
     });
@@ -155,6 +159,23 @@
     list: []
   };
 
+  /* ---------- Favorites storage ---------- */
+  var favs = {};   // { id: true }
+
+  function loadFavs() {
+    try {
+      var raw = localStorage.getItem(FAV_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(arr)) arr.forEach(function (id) { favs[id] = true; });
+    } catch (e) { favs = {}; }
+  }
+
+  function saveFavs() {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(Object.keys(favs))); } catch (e) {}
+  }
+
+  function favCount() { return Object.keys(favs).length; }
+
   function currentName() {
     var n = (state.name || "").trim();
     return n || DEFAULT_NAME;
@@ -168,13 +189,15 @@
   /* ==========================================================
      4. CATEGORY BAR
      ========================================================== */
+  function favLabel() { return "♥ Favorites (" + favCount() + ")"; }
+
   function buildCategoryBar() {
     var frag = document.createDocumentFragment();
 
     function addBtn(key, label, count) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "cat-btn" + (key === state.cat ? " active" : "");
+      b.className = "cat-btn" + (key === "favs" ? " cat-fav" : "") + (key === state.cat ? " active" : "");
       b.setAttribute("data-cat", key);
       b.textContent = label;
       b.title = count + " styles";
@@ -182,10 +205,19 @@
     }
 
     addBtn("all", "All", allStyles.length);
+    addBtn("favs", favLabel(), favCount());
     categories.forEach(function (c) { addBtn(c.key, c.title, c.items.length); });
 
     catBar.innerHTML = "";
     catBar.appendChild(frag);
+  }
+
+  function updateFavButton() {
+    var b = catBar.querySelector('.cat-btn[data-cat="favs"]');
+    if (b) {
+      b.textContent = favLabel();
+      b.title = favCount() + " styles";
+    }
   }
 
   function setActiveCategory(key) {
@@ -205,8 +237,20 @@
      ========================================================== */
   function getList() {
     if (state.cat === "all") return allStyles;
+    if (state.cat === "favs") return allStyles.filter(function (s) { return favs[s.id]; });
     var c = categories.filter(function (x) { return x.key === state.cat; })[0];
     return c ? c.items : [];
+  }
+
+  var HEART_SVG =
+    '<svg class="fav-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 2.6 4.5 6.2 4.1c2-.2 3.9.8 5.8 3 1.9-2.2 3.8-3.2 5.8-3 3.6.4 5.3 4.2 3.8 7.6C19.5 16.4 12 21 12 21z"/>' +
+    '</svg>';
+
+  function paintFav(btn, on) {
+    btn.classList.toggle("is-fav", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.setAttribute("aria-label", on ? "Remove from favorites" : "Add to favorites");
   }
 
   function createCard(item, index) {
@@ -225,12 +269,24 @@
     span.className = "card-text";
     span.textContent = text;
 
+    var foot = document.createElement("div");
+    foot.className = "card-foot";
+
+    var fav = document.createElement("button");
+    fav.type = "button";
+    fav.className = "fav-btn";
+    fav.innerHTML = HEART_SVG + '<span class="fav-label">Favorite</span>';
+    paintFav(fav, !!favs[item.id]);
+
     var btn = document.createElement("span");
     btn.className = "card-copy";
     btn.textContent = "Copy";
 
+    foot.appendChild(fav);
+    foot.appendChild(btn);
+
     card.appendChild(span);
-    card.appendChild(btn);
+    card.appendChild(foot);
     return card;
   }
 
@@ -252,10 +308,19 @@
     cardGrid.innerHTML = "";
 
     var active = categories.filter(function (c) { return c.key === state.cat; })[0];
-    cardsTitle.textContent = state.cat === "all" ? "All Styles" : (active ? active.title + " Styles" : "Styles");
+    if (state.cat === "all") cardsTitle.textContent = "All Styles";
+    else if (state.cat === "favs") cardsTitle.textContent = "Your Favorites";
+    else cardsTitle.textContent = active ? active.title + " Styles" : "Styles";
 
-    emptyState.hidden = state.list.length > 0;
+    updateEmpty();
     appendNextPage();
+  }
+
+  function updateEmpty() {
+    emptyState.hidden = state.list.length > 0;
+    emptyState.textContent = state.cat === "favs"
+      ? "No favorites yet. Tap the heart on any card to save it here."
+      : "No styles found in this category.";
   }
 
   function updateMeta() {
@@ -334,6 +399,31 @@
   }
 
   /* ==========================================================
+     6b. FAVORITES TOGGLE
+     ========================================================== */
+  function toggleFav(card, favBtn) {
+    var item = card.__item;
+    var on = !favs[item.id];
+
+    if (on) favs[item.id] = true;
+    else delete favs[item.id];
+    saveFavs();
+
+    paintFav(favBtn, on);
+    updateFavButton();
+    showToast(on ? "Added to favorites ♥" : "Removed from favorites");
+
+    // Inside the Favorites tab, an un-favorited card leaves the list
+    if (state.cat === "favs" && !on) {
+      card.remove();
+      state.list = getList();
+      state.shown = Math.max(0, state.shown - 1);
+      updateEmpty();
+      updateMeta();
+    }
+  }
+
+  /* ==========================================================
      7. EVENTS
      ========================================================== */
   function saveName() {
@@ -375,11 +465,19 @@
 
   cardGrid.addEventListener("click", function (e) {
     var card = e.target.closest(".card");
-    if (card) copyCard(card);
+    if (!card) return;
+    var favBtn = e.target.closest(".fav-btn");
+    if (favBtn) {               // heart click: favorite only, do not copy
+      e.stopPropagation();
+      toggleFav(card, favBtn);
+      return;
+    }
+    copyCard(card);
   });
 
   cardGrid.addEventListener("keydown", function (e) {
     if (e.key !== "Enter" && e.key !== " ") return;
+    if (e.target.closest(".fav-btn")) return;   // let the heart button handle its own keys
     var card = e.target.closest(".card");
     if (!card) return;
     e.preventDefault();
@@ -402,6 +500,7 @@
     if (yearEl) yearEl.textContent = new Date().getFullYear();
 
     loadData();
+    loadFavs();
     totalCount.textContent = allStyles.length;
 
     // restore saved name
